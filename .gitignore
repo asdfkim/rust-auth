@@ -1,1 +1,117 @@
-/target
+# Cargo build directory
+/target/
+
+# If you have workspaces or nested crates, ignore their target dirs too
+**/target/
+
+# Cargo lock - for libraries you might want to keep Cargo.lock, but
+/Cargo.lock
+**/Cargo.lock
+
+# Compiled object files, libraries, and metadata
+*.rlib
+*.rmeta
+*.d
+*.so
+*.dll
+*.dylib
+*.exe
+*.out
+
+# Backup and temporary files
+*.swp
+*.swo
+*~
+*.tmp
+*.temp
+*.log
+
+# OSX
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+Icon
+
+# Editor directories and files
+.vscode/
+.idea/
+*.iml
+*.sublime-project
+*.sublime-workspace
+out/
+
+# Emacs/Vim and other temporary backup files
+.#*
+
+# Visual Studio
+*.VC.db
+*.VC.VC.opendb
+
+# Node (if any frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment / secret files
+.env
+.env.*
+.env.local
+secrets.env
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Database files
+*.sqlite
+*.sqlite3
+db.sqlite3
+
+# Coverage, profiling and sanitizer outputs
+coverage/
+*.profraw
+*.profdata
+*.gcda
+*.gcno
+*.gcov
+
+# Rust analyzer / IDE caches
+.rust-project.json
+.cargo/
+.rustup/
+
+# Build artifacts from other tools
+/build/
+/out/
+
+# Temporary test / example artifacts
+/examples/**/target/
+
+# Ignore generated docs (uncomment if you commit docs)
+/target/doc/
+
+# Misc
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+
+# Lockfiles you may want to ignore (node-related)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Ignore secrets and credentials
+.aws/credentials
+.azure/
+.gcp/
+
+# End of .gitignore
