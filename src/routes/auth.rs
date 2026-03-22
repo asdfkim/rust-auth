@@ -1,6 +1,7 @@
-use crate::database::DbPool;
 use crate::error::AppError;
-use crate::model::{RegisterRequest, RegisterResponse, TokenRequest, TokenResponse, User};
+use crate::model::{
+    AppState, RegisterRequest, RegisterResponse, TokenRequest, TokenResponse, User,
+};
 use crate::utils;
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -8,14 +9,14 @@ use axum::response::IntoResponse;
 use axum::routing::post;
 use axum::{Json, Router};
 
-pub fn router() -> Router<DbPool> {
+pub fn router() -> Router<AppState> {
     Router::new()
         .route("/register", post(register))
         .route("/token", post(token))
 }
 
 async fn register(
-    State(pool): State<DbPool>,
+    State(AppState { pool, .. }): State<AppState>,
     Json(payload): Json<RegisterRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     // Todo : 해싱해야함.
@@ -46,18 +47,20 @@ async fn register(
 }
 
 async fn token(
-    State(pool): State<DbPool>,
+    State(AppState { pool, config }): State<AppState>,
     Json(payload): Json<TokenRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     // Todo : 해싱해야함.
     let hashed = payload.password;
 
+    // --- //
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE uuid = ?")
         .bind(&payload.uuid)
         .fetch_optional(&pool)
         .await
         .map_err(|_| AppError::Internal)?
         .ok_or(AppError::InvalidCredentials)?;
+    // --- //
 
     if user.password != hashed {
         return Err(AppError::InvalidCredentials);
@@ -65,7 +68,7 @@ async fn token(
 
     let created_at = utils::time::now_unix();
     let expires_at = utils::time::now_unix() + 30;
-    let token = utils::jwt::generate(&user.uuid, expires_at)?;
+    let token = utils::jwt::generate(&user.uuid, expires_at, &config.jwt_secret)?;
 
     let res = TokenResponse {
         uuid: user.uuid,

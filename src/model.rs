@@ -1,6 +1,15 @@
+use crate::config::Config;
+use crate::database::DbPool;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use sqlx::types::Uuid;
+use std::sync::Arc;
+
+#[derive(Clone)]
+pub struct AppState {
+    pub pool: DbPool,
+    pub config: Arc<Config>,
+}
 
 #[derive(FromRow, Serialize, Deserialize)]
 pub struct User {
@@ -35,11 +44,4 @@ pub struct TokenResponse {
     pub token: String,
     pub created_at: i64,
     pub expires_at: i64,
-}
-
-// --- //
-
-#[derive(Serialize)]
-pub struct ErrorResponse {
-    pub error_code: String,
 }
