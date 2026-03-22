@@ -1,10 +1,5 @@
 use argon2::password_hash::{Error, SaltString, rand_core::OsRng};
 use argon2::{Algorithm, Argon2, Params, PasswordHasher, Version};
-use chrono::Utc;
-
-pub fn now_ms() -> i64 {
-    Utc::now().timestamp_millis()
-}
 
 pub fn hash_password(password: &[u8]) -> Result<String, Error> {
     let salt = SaltString::generate(&mut OsRng);

@@ -61,7 +61,6 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Environment / secret files
-.env
 .env.*
 .env.local
 secrets.env

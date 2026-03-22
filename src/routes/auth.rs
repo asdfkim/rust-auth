@@ -1,63 +1,78 @@
-use crate::database::Database;
+use crate::database::DbPool;
 use crate::error::AppError;
-use crate::models::{RegisterRequest, RegisterResponse, TokenRequest, TokenResponse, User};
+use crate::model::{RegisterRequest, RegisterResponse, TokenRequest, TokenResponse, User};
 use crate::utils;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::routing::{get, post};
+use axum::routing::post;
 use axum::{Json, Router};
-use std::sync::Arc;
 
-pub fn router() -> Router<Arc<Database>> {
+pub fn router() -> Router<DbPool> {
     Router::new()
         .route("/register", post(register))
         .route("/token", post(token))
 }
 
 async fn register(
-    State(db): State<Arc<Database>>,
+    State(pool): State<DbPool>,
     Json(payload): Json<RegisterRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    // Todo : 비밀번호 해싱
+    // Todo : 해싱해야함.
+    let hashed = payload.password;
 
     let user = User {
         uuid: payload.uuid,
-        password: payload.password,
-        created_at: utils::now_ms(),
+        password: hashed,
     };
 
-    db.create_user(&user).await?;
+    // --- //
+    sqlx::query("INSERT INTO users (uuid, password) VALUES (?, ?)")
+        .bind(user.uuid)
+        .bind(&user.password)
+        .execute(&pool)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::Database(db_err) if db_err.is_unique_violation() => {
+                AppError::AlreadyExists
+            }
+            _ => AppError::Internal,
+        })?;
+    // --- //
 
-    let res = RegisterResponse {
-        uuid: user.uuid,
-        created_at: user.created_at,
-    };
+    let res = RegisterResponse { uuid: user.uuid };
 
     Ok((StatusCode::CREATED, Json(res)))
 }
 
 async fn token(
-    State(db): State<Arc<Database>>,
+    State(pool): State<DbPool>,
     Json(payload): Json<TokenRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let user = db.get_user(&payload.uuid).await?;
-
-    // Todo : 비밀번호 해싱
+    // Todo : 해싱해야함.
     let hashed = payload.password;
+
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE uuid = ?")
+        .bind(&payload.uuid)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::InvalidCredentials)?;
 
     if user.password != hashed {
         return Err(AppError::InvalidCredentials);
     }
 
-    // Todo : JWT 생성
+    let created_at = utils::time::now_unix();
+    let expires_at = utils::time::now_unix() + 30;
+    let token = utils::jwt::generate(&user.uuid, expires_at)?;
 
     let res = TokenResponse {
         uuid: user.uuid,
-        token: "token".to_string(),
-        created_at: utils::now_ms(),
-        expires_in: utils::now_ms() + 1000 * 30, // 30 sec
+        token,
+        created_at,
+        expires_at,
     };
 
-    Ok(Json(res))
+    Ok((StatusCode::OK, Json(res)))
 }
