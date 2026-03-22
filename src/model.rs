@@ -42,6 +42,18 @@ pub struct TokenRequest {
 pub struct TokenResponse {
     pub uuid: Uuid,
     pub token: String,
-    pub created_at: i64,
-    pub expires_at: i64,
+    pub created_at: usize,
+    pub expires_at: usize,
+}
+
+// --- //
+
+#[derive(Deserialize)]
+pub struct VerifyRequest {
+    pub token: String,
+}
+
+#[derive(Serialize)]
+pub struct VerifyResponse {
+    pub uuid: Uuid,
 }

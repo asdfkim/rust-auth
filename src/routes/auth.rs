@@ -1,6 +1,7 @@
 use crate::error::AppError;
 use crate::model::{
-    AppState, RegisterRequest, RegisterResponse, TokenRequest, TokenResponse, User,
+    AppState, RegisterRequest, RegisterResponse, TokenRequest, TokenResponse, User, VerifyRequest,
+    VerifyResponse,
 };
 use crate::utils;
 use axum::extract::State;
@@ -8,11 +9,13 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::post;
 use axum::{Json, Router};
+use uuid::Uuid;
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/register", post(register))
         .route("/token", post(token))
+        .route("/verify", post(verify))
 }
 
 async fn register(
@@ -79,11 +82,10 @@ async fn token(
     let password = payload.password;
     let hash = user.password;
 
-    let is_valid = tokio::task::spawn_blocking(move || {
-        utils::hash::verify_password(&password, &hash)
-    })
-    .await
-    .map_err(|_| AppError::Internal)??;
+    let is_valid =
+        tokio::task::spawn_blocking(move || utils::hash::verify_password(&password, &hash))
+            .await
+            .map_err(|_| AppError::Internal)??;
 
     if !is_valid {
         return Err(AppError::InvalidCredentials);
@@ -91,8 +93,8 @@ async fn token(
 
     // --- //
 
-    let created_at = utils::time::now_unix();
-    let expires_at = created_at + 30;
+    let created_at = utils::time::now_unix() as usize;
+    let expires_at = created_at + config.jwt_expires_in;
     let token = utils::jwt::generate(&user.uuid, expires_at, &config.jwt_secret)?;
 
     let res = TokenResponse {
@@ -103,4 +105,15 @@ async fn token(
     };
 
     Ok((StatusCode::OK, Json(res)))
+}
+
+async fn verify(
+    State(AppState { config, .. }): State<AppState>,
+    Json(payload): Json<VerifyRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let claims = utils::jwt::verify(&payload.token, &config.jwt_secret)?;
+
+    let uuid = Uuid::parse_str(&claims.uuid).map_err(|_| AppError::Internal)?;
+
+    Ok((StatusCode::OK, Json(VerifyResponse { uuid })))
 }
