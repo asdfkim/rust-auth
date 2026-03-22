@@ -17,3 +17,4 @@ thiserror = "2.0.18"
 jsonwebtoken = { version = "10.3.0", default-features = false, features = ["rust_crypto"] }
 chrono = "0.4.44"
 dotenvy = "0.15.7"
+tower_governor = "0.8.0"

@@ -1,17 +1,24 @@
-use argon2::password_hash::{Error, SaltString, rand_core::OsRng};
+use crate::error::AppError;
+use argon2::password_hash::{SaltString, rand_core::OsRng};
 use argon2::{Algorithm, Argon2, Params, PasswordHasher, Version};
+use password_hash::{PasswordHash, PasswordVerifier};
 
-pub fn hash_password(password: &[u8]) -> Result<String, Error> {
+pub fn hash_password(password: &str) -> Result<String, AppError> {
     let salt = SaltString::generate(&mut OsRng);
 
-    let m_cost = 1024 * 16; // 16MB
-    let t_cost = 3;
-    let p_cost = 1;
-    let params = Params::new(m_cost, t_cost, p_cost, None)?;
-
+    let params = Params::new(1024 * 19, 3, 1, None).map_err(|_| AppError::Internal)?;
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
-    let password_hash = argon2.hash_password(password, &salt)?.to_string();
+    argon2
+        .hash_password(password.as_bytes(), &salt)
+        .map(|h| h.to_string())
+        .map_err(|_| AppError::Internal)
+}
 
-    Ok(password_hash)
+pub fn verify_password(password: &str, hash: &str) -> Result<bool, AppError> {
+    let parsed_hash = PasswordHash::new(hash).map_err(|_| AppError::Internal)?;
+
+    Ok(Argon2::default()
+        .verify_password(password.as_bytes(), &parsed_hash)
+        .is_ok())
 }

@@ -19,8 +19,23 @@ async fn register(
     State(AppState { pool, .. }): State<AppState>,
     Json(payload): Json<RegisterRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    // Todo : 해싱해야함.
-    let hashed = payload.password;
+    let exists = sqlx::query("SELECT 1 FROM users WHERE uuid = ?")
+        .bind(&payload.uuid)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .is_some();
+
+    if exists {
+        return Err(AppError::AlreadyExists);
+    }
+
+    // --- //
+
+    let password = payload.password;
+    let hashed = tokio::task::spawn_blocking(move || utils::hash::hash_password(&password))
+        .await
+        .map_err(|_| AppError::Internal)??;
 
     let user = User {
         uuid: payload.uuid,
@@ -28,6 +43,7 @@ async fn register(
     };
 
     // --- //
+
     sqlx::query("INSERT INTO users (uuid, password) VALUES (?, ?)")
         .bind(user.uuid)
         .bind(&user.password)
@@ -39,6 +55,7 @@ async fn register(
             }
             _ => AppError::Internal,
         })?;
+
     // --- //
 
     let res = RegisterResponse { uuid: user.uuid };
@@ -50,24 +67,32 @@ async fn token(
     State(AppState { pool, config }): State<AppState>,
     Json(payload): Json<TokenRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    // Todo : 해싱해야함.
-    let hashed = payload.password;
-
-    // --- //
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE uuid = ?")
         .bind(&payload.uuid)
         .fetch_optional(&pool)
         .await
         .map_err(|_| AppError::Internal)?
         .ok_or(AppError::InvalidCredentials)?;
+
     // --- //
 
-    if user.password != hashed {
+    let password = payload.password;
+    let hash = user.password;
+
+    let is_valid = tokio::task::spawn_blocking(move || {
+        utils::hash::verify_password(&password, &hash)
+    })
+    .await
+    .map_err(|_| AppError::Internal)??;
+
+    if !is_valid {
         return Err(AppError::InvalidCredentials);
     }
 
+    // --- //
+
     let created_at = utils::time::now_unix();
-    let expires_at = utils::time::now_unix() + 30;
+    let expires_at = created_at + 30;
     let token = utils::jwt::generate(&user.uuid, expires_at, &config.jwt_secret)?;
 
     let res = TokenResponse {
